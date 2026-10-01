@@ -109,15 +109,12 @@ const RoomBackend = {
             emit();
           }, onError);
         }
-        if (auth.currentUser?.uid === roomData.ownerUid && !actionsUnsubscribe) {
+        
+        if (!actionsUnsubscribe) {
           actionsUnsubscribe = onSnapshot(collection(roomReference, 'actions'), (actionSnapshot) => {
             actions = actionSnapshot.docs.map((action) => action.data());
             emit();
           }, onError);
-        } else if (auth.currentUser?.uid !== roomData.ownerUid && actionsUnsubscribe) {
-          actionsUnsubscribe();
-          actionsUnsubscribe = null;
-          actions = [];
         }
       }, onError);
     }).catch(onError);
@@ -288,15 +285,13 @@ const RoomBackend = {
     });
   },
 
-  async submitDecision(roomId, roundNumber, turnNumber, action) {
+  async publishAction(roomId, payload) {
     const user = await authenticationReady;
     const roomReference = doc(database, 'rooms', roomId);
     const actionReference = doc(roomReference, 'actions', user.uid);
     await setDoc(actionReference, {
       uid: user.uid,
-      roundNumber,
-      turnNumber,
-      action,
+      ...payload,
       updatedAt: serverTimestamp()
     });
   }

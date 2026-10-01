@@ -106,7 +106,9 @@ service cloud.firestore {
             return get(roomPath(roomId)).data;
           }
 
-          allow get, list: if signedIn() && parentRoom().ownerUid == request.auth.uid;
+          allow get, list: if signedIn() && (
+            parentRoom().ownerUid == request.auth.uid || request.auth.uid in parentRoom().memberUids
+          );
 
           allow create, update: if signedIn()
             && request.auth.uid == playerUid

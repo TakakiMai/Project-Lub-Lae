@@ -1247,22 +1247,18 @@ function getCardAssetPath(card) {
         // 4. เมื่อทุกคนกดครบแล้ว ให้ Host ทำหน้าที่สรุปผลเพียงคนเดียว
         if (allSelected && state.phase === 'decision') {
           
-          // ล็อกสถานะเป็น 'resolving' ทันที เพื่อป้องกันข้อมูลจากผู้เล่นอื่นรันซ้ำ
           state.phase = 'resolving';
-
           const isHost = room?.isRemote ? room.ownerUid === window.RoomBackend.uid : true;
           
-          if (isHost) {
-            // หน่วงเวลา 0.5 วินาที ให้กราฟิกทำงานเสร็จ
-            setTimeout(() => {
-              resolveDecisions();
-              
-              // สั่งให้ Host ดันสถานะเกมรอบใหม่ขึ้น Firebase
-              if (room && room.isRemote && typeof queueRemoteGameState === 'function') {
-                queueRemoteGameState();
-              }
-            }, 500);
-          }
+          // ให้ทุกเครื่องประมวลผล resolveDecisions() ไปพร้อมกันเลยเพื่อความเรียลไทม์
+          setTimeout(() => {
+            resolveDecisions();
+            
+            // แต่ให้ Host เป็นคนเดียวที่สำรองสถานะเกมขึ้น Firebase เพื่อกันข้อมูลตีกัน
+            if (isHost && room && room.isRemote && typeof queueRemoteGameState === 'function') {
+              queueRemoteGameState();
+            }
+          }, 500);
         }
       }
 
@@ -1339,13 +1335,14 @@ function getCardAssetPath(card) {
         const campers = active.filter(p => choices[p.id] === 'camp');
         const continuing = active.filter(p => choices[p.id] === 'continue');
 
-        Object.entries(choices).forEach(([id, choice]) => showDecisionBubble(id, choice));
-
         const campMessage = getCampMessage(campers);
         distributeLooseTreasure(campers);
         bankPlayers(campers, true);
         state.decisions = {};
         renderGameBoard();
+
+        Object.entries(choices).forEach(([id, choice]) => showDecisionBubble(id, choice));
+        
         if (continuing.length === 0) { finishRound('returned', campMessage); return; }
         if (state.routeDeck.length === 0) { returnExplorersTogether(campMessage); return; }
         startAutoCountdown(campMessage);
