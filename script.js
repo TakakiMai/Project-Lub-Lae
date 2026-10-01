@@ -393,9 +393,9 @@ const hazardVideoMap = {
             return;
           }
           
-          // เพิ่มการป้องกันไม่ให้ข้อมูลเกมของ Host ถูกทับด้วยข้อมูลเริ่มต้นจาก Firebase
-          const isPlayingHost = remoteRoom.status === 'playing' && remoteRoom.ownerUid === window.RoomBackend.uid;
-          if (isPlayingHost && state.currentRoom?.players) {
+          // ปลดล็อกการป้องกันให้ "ทุกคน" (ไม่ใช่แค่โฮสต์) 
+          // เพื่อรักษาสถานะผู้เล่น (active, สมบัติ) ไม่ให้โดนรีเซ็ตเวลา Firebase ส่งข้อมูลอัปเดตปุ่มกดมาให้
+          if (remoteRoom.status === 'playing' && state.currentRoom?.players) {
             remoteRoom.players = state.currentRoom.players;
           }
           
@@ -413,12 +413,33 @@ const hazardVideoMap = {
             }
             renderWaitingRoom();
           } else if (remoteRoom.status === 'playing') {
-            if (remoteRoom.ownerUid === window.RoomBackend.uid) {
-              processRemoteActions(remoteRoom);
-            } else if (remoteRoom.gameState) {
-              applyRemoteGameState(remoteRoom);
-            } else if (elements.roomLobbyScreen.classList.contains('active')) {
-              elements.waitingRoomStatus.textContent = 'เจ้าของห้องกำลังเตรียมเกม';
+            
+            // 1. ปลดล็อกให้ทุกคน (รวมถึงลูกห้อง) ประมวลผลปุ่มกดของเพื่อนและรันอนิเมชันด้วยตัวเอง
+            processRemoteActions(remoteRoom);
+
+            if (remoteRoom.gameState) {
+              const gs = remoteRoom.gameState;
+              
+              // ซิงก์ "กองการ์ด" จากโฮสต์มาไว้ที่ลูกห้องเสมอ เพื่อให้เวลาจั่วเอง จะได้การ์ดใบเดียวกันเป๊ะๆ
+              if (gs.routeDeck) state.routeDeck = gs.routeDeck;
+              
+              // เช็กว่าลูกห้องยังค้างอยู่ที่หน้า Lobby หรือไม่?
+              const notInGameYet = !elements.gameScreen.classList.contains('active');
+              
+              // เช็กว่าลูกห้องล้าหลังกว่าโฮสต์หรือไม่? 
+              // (+1 คือช่องว่างเวลา เพื่อปล่อยให้ลูกห้องรันอนิเมชันนับถอยหลัง 3 วินาทีได้จบพอดีโดยไม่โดนโฮสต์บังคับข้าม)
+              const isLagging = gs.roundNumber > state.roundNumber || 
+                                (gs.roundNumber === state.roundNumber && gs.turnNumber > state.turnNumber + 1);
+              
+              // ถ้ายังไม่เข้าเกม หรือ เน็ตหลุดจนล้าหลังมาก ให้บังคับโหลดหน้าจอจากโฮสต์มาทับทันที
+              if ((notInGameYet || isLagging) && !state.remoteApplying) {
+                applyRemoteGameState(remoteRoom);
+              } else {
+                // แต่ถ้ากำลังเล่นไปพร้อมๆ กัน ให้อัปเดตแค่เลขเวอร์ชัน เพื่อให้เกมเดินหน้าต่ออย่างลื่นไหล
+                state.lastRemoteGameRevision = gs.revision;
+              }
+            } else if (!elements.gameScreen.classList.contains('active')) {
+              elements.waitingRoomStatus.textContent = 'เจ้าของห้องกำลังเตรียมเกม...';
             }
           }
         }, (error) => showNotification(`เชื่อมต่อห้องไม่สำเร็จ: ${error.message}`));
@@ -1166,13 +1187,33 @@ function getCardAssetPath(card) {
 
       function updateGameControls() {
         if (!state.currentRoom) return;
+        
+        // ค้นหาตัวเราเองเพื่อใช้เช็กสิทธิ์การกดปุ่ม
         const me = state.currentRoom.players.find(p => p.isMe);
         const isMyTurnToDecide = state.phase === 'decision' && me && me.active && !state.decisions[me.id];
         
+        // เปิด/ปิด ปุ่มไปต่อและกลับแคมป์ตามสิทธิ์
         elements.btnContinue.disabled = !isMyTurnToDecide;
         elements.btnCamp.disabled = !isMyTurnToDecide;
         
-        if (state.phase === 'decision' && !state.statusMessage) setGameStatus('กำลังรอผู้เล่นตัดสินใจ', 0);
+        // --- ส่วนที่เพิ่มเข้ามาใหม่เพื่อแสดงตัวเลขแบบ Real-time ---
+        if (state.phase === 'decision' && !state.statusMessage) {
+          // 1. นับจำนวนคนที่ยังมีชีวิตรอดและเล่นอยู่ในรอบนี้
+          const activePlayers = state.currentRoom.players.filter(p => p.active);
+          
+          // 2. นับจำนวนคนที่ทำการตัดสินใจแล้ว (มีข้อมูลส่งเข้ามาใน state.decisions)
+          const decidedCount = activePlayers.filter(p => state.decisions[p.id]).length;
+          
+          // 3. แสดงข้อความสถานะพร้อมตัวเลข
+          if (decidedCount < activePlayers.length) {
+            // ถ้ายอดคนกดยังไม่ครบ ให้โชว์ว่ากดไปแล้วกี่คน (เช่น 1/4)
+            setGameStatus(`กำลังรอผู้เล่นตัดสินใจ (${decidedCount}/${activePlayers.length})`, 0);
+          } else {
+            // ถ้ากดครบแล้ว (ระบบกำลังจะรันอนิเมชัน)
+            setGameStatus('ผู้เล่นทุกคนตัดสินใจแล้ว...', 0);
+          }
+        }
+        
         if (state.phase === 'roundEnd' && !state.statusMessage) setGameStatus('รอบนี้จบแล้ว', 0);
       }
 
