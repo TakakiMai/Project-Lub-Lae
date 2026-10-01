@@ -1,0 +1,19 @@
+# Dependencies and Firebase local state
+node_modules/
+functions/node_modules/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+database-debug.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+functions/.env
+functions/.env.*
+!functions/.env.example
+**/serviceAccountKey.json
+**/service-account*.json
+**/firebase-adminsdk-*.json
+**/*adminsdk*.json

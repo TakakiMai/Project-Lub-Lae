@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ลับแล — Lobby & Game</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="theme-inca">
+    <div id="app">
+      <!-- หน้า Login -->
+      <section id="authScreen" class="screen active">
+        <div class="auth-card glass-panel">
+          <img class="brand-mark" src="ไอคอน/พดด้วง.png" alt="โลโก้ลับแล" />
+          <h1>ลับแล</h1>
+          <p>เข้าสู่โลกแห่งสมบัติและภัยพิบัติ</p>
+          <label class="field-label" for="usernameInput">Username</label>
+          <input id="usernameInput" type="text" maxlength="18" placeholder="กรอกชื่อผู้เล่น" />
+          <button id="enterLobbyBtn" class="btn btn-primary btn-large">เข้าสู่ Lobby</button>
+        </div>
+      </section>
+
+      <!-- หน้า Lobby -->
+      <section id="lobbyScreen" class="screen hidden">
+        <header class="lobby-header glass-panel">
+          <div><p class="eyebrow">ผู้เล่น</p><h2 id="welcomeName">ผู้เล่น</h2></div>
+          <div class="lobby-header-actions">
+            <button id="testGameBtn" class="btn btn-ghost" type="button" title="เข้าเกมจำลองเพื่อทดสอบ">ทดสอบ</button>
+            <button id="logoutBtn" class="btn btn-ghost" type="button">ออก</button>
+          </div>
+        </header>
+        <main class="lobby-layout">
+          <div class="color-picker-panel glass-panel">
+            <div class="panel-header"><h3>เลือกสีเต็นท์ของคุณ</h3></div>
+            <div id="colorGrid" class="color-grid"></div>
+          </div>
+          
+          <div class="rooms-panel glass-panel">
+            <div class="panel-header room-panel-header">
+              <h3>ห้องที่เปิดอยู่</h3>
+              <div class="room-panel-actions">
+                <button id="createRoomBtn" class="btn btn-primary" type="button">สร้างห้อง</button>
+                <button id="openJoinRoomBtn" class="btn btn-ghost" type="button">เข้าร่วมด้วยรหัส</button>
+              </div>
+            </div>
+            <div id="roomList" class="room-list"></div>
+          </div>
+        </main>
+      </section>
+
+      <section id="roomLobbyScreen" class="screen hidden">
+        <header class="lobby-header glass-panel waiting-room-header">
+          <div>
+            <p class="eyebrow">ห้องรอเริ่มเกม</p>
+            <h2 id="waitingRoomName">ห้องของผู้เล่น</h2>
+            <p id="waitingRoomCode" class="room-detail"></p>
+          </div>
+          <button id="leaveWaitingRoomBtn" class="btn btn-ghost" type="button">ออกจากห้อง</button>
+        </header>
+        <main class="waiting-room-layout">
+          <section class="waiting-players-panel glass-panel">
+            <div class="panel-header waiting-players-header">
+              <h3>ผู้เล่นในห้อง</h3>
+              <span id="waitingPlayerCount" class="pill">1 / 8</span>
+            </div>
+            <p id="waitingRoomStatus" class="room-detail" aria-live="polite">รอผู้เล่นอย่างน้อย 3 คนเพื่อเริ่มเกม</p>
+            <div id="waitingPlayerGrid" class="waiting-player-grid"></div>
+            <div id="waitingOwnerControls" class="waiting-owner-controls hidden">
+              <div class="bot-controls">
+                <span>บอทในห้อง</span>
+                <button id="removeBotBtn" class="btn btn-ghost btn-small" type="button" aria-label="ลบบอท">−</button>
+                <strong id="waitingBotCount">0</strong>
+                <button id="addBotBtn" class="btn btn-ghost btn-small" type="button" aria-label="เพิ่มบอท">+</button>
+              </div>
+              <button id="startRoomGameBtn" class="btn btn-primary" type="button" disabled>เริ่มเกม</button>
+            </div>
+          </section>
+        </main>
+      </section>
+
+      <!-- หน้า Game -->
+      <section id="gameScreen" class="screen hidden">
+        <header class="game-topbar glass-panel">
+          <div class="topbar-left">
+            <h2 id="currentRoomName">ห้องลับแล</h2>
+            <p id="currentRoomCode" class="room-code"></p>
+          </div>
+          <div class="topbar-center"><p id="gameStatus" class="game-status" aria-live="polite">กำลังเตรียมเกม...</p></div>
+          <div class="topbar-right">
+            <div class="status-group">
+              <span class="pill">รอบ <strong id="roundInfo">1</strong></span>
+              <span class="pill">เปิดแล้ว <strong id="turnInfo">0</strong></span>
+              <span class="pill">ผู้เล่น <strong id="playerCountInfo">4</strong></span>
+            </div>
+            <button id="leaveRoomBtn" class="btn btn-ghost" title="กลับ Lobby">ออก</button>
+            <button id="mobileMenuToggle" class="mobile-menu-toggle" type="button" aria-label="เมนูห้อง" aria-expanded="false" aria-controls="mobileGameMenu">
+              <span aria-hidden="true">☰</span>
+            </button>
+          </div>
+          <div id="mobileGameMenu" class="mobile-game-menu" hidden>
+            <div class="mobile-game-details">
+              <strong id="mobileRoomName">ห้องลับแล</strong>
+              <span id="mobileRoomCode"></span>
+              <p id="mobileGameStatus">กำลังรอผู้เล่นตัดสินใจ</p>
+            </div>
+            <button id="mobileExitBtn" class="btn btn-ghost" type="button">ออกจากห้อง</button>
+          </div>
+        </header>
+
+        <main class="game-content">
+          <div class="table-area">
+            <!-- ผู้เล่นแถวบน -->
+            <div id="topSeatRow" class="seat-row top" aria-live="polite"></div>
+
+            <!-- กระดานตรงกลาง -->
+            <div class="middle-board">
+              <div class="deck-zone">
+                <div class="deck-card" title="กองจั่ว"></div>
+                <div id="looseTreasureCounter" class="loose-treasure-counter" title="เศษสมบัติที่ยังตกค้าง">
+                  <img src="ไอคอน/พดด้วง.png" alt="สมบัติ" />
+                  <strong id="looseTreasureCount">0</strong>
+                </div>
+              </div>
+
+              <div id="centerStack" class="cards-zone" aria-live="polite"></div>
+
+              <div class="action-zone">
+                <button id="btnContinue" class="btn btn-action go" disabled>ไปต่อ</button>
+                <button id="btnCamp" class="btn btn-action camp" disabled>กลับ<br>แคมป์</button>
+              </div>
+
+              <!-- แสดงการ์ดที่เพิ่งจั่ว -->
+              <div id="revealArea" class="reveal-area">
+                <div id="revealCard" class="reveal-card hidden" role="img" aria-label="การ์ดเส้นทาง"></div>
+              </div>
+              
+              <!-- นับถอยหลัง -->
+              <div id="countdownOverlay" class="countdown-overlay">3</div>
+            </div>
+
+            <!-- ผู้เล่นแถวล่าง -->
+            <div id="bottomSeatRow" class="seat-row bottom" aria-live="polite"></div>
+          </div>
+        </main>
+      </section>
+      
+      <!-- ตัวอย่างไพ่ขยายใหญ่ตอนโฮเวอร์ -->
+      <div id="cardPreview" class="card-preview hidden" role="img"></div>
+    </div>
+
+    <section id="createRoomModal" class="room-modal-overlay hidden" aria-modal="true" role="dialog" aria-labelledby="createRoomTitle">
+      <form id="createRoomForm" class="room-modal glass-panel">
+        <div class="panel-header"><h2 id="createRoomTitle">ตั้งค่าห้อง</h2></div>
+        <label class="field-label" for="createRoomNameInput">ชื่อห้อง</label>
+        <input id="createRoomNameInput" type="text" maxlength="28" required />
+        <label class="field-label bot-count-label">จำนวนบอทเริ่มต้น</label>
+        <div class="bot-count-picker">
+          <button id="createRoomRemoveBotBtn" class="btn btn-ghost" type="button" aria-label="ลดจำนวนบอท">−</button>
+          <output id="createRoomBotCount">2</output>
+          <button id="createRoomAddBotBtn" class="btn btn-ghost" type="button" aria-label="เพิ่มจำนวนบอท">+</button>
+          <span>คน (รวมสูงสุด 8 คน)</span>
+        </div>
+        <div class="room-modal-actions">
+          <button id="cancelCreateRoomBtn" class="btn btn-ghost" type="button">ยกเลิก</button>
+          <button class="btn btn-primary" type="submit">สร้างห้อง</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="joinRoomModal" class="room-modal-overlay hidden" aria-modal="true" role="dialog" aria-labelledby="joinRoomTitle">
+      <form id="joinRoomForm" class="room-modal glass-panel">
+        <div class="panel-header"><h2 id="joinRoomTitle">เข้าร่วมด้วยรหัส</h2></div>
+        <label class="field-label" for="joinRoomCodeInput">รหัสห้อง</label>
+        <input id="joinRoomCodeInput" type="text" inputmode="numeric" maxlength="6" placeholder="กรอกรหัส 6 หลัก" required />
+        <div class="room-modal-actions">
+          <button id="cancelJoinRoomBtn" class="btn btn-ghost" type="button">ยกเลิก</button>
+          <button class="btn btn-primary" type="submit">เข้าร่วม</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="waitingColorModal" class="room-modal-overlay hidden" aria-modal="true" role="dialog" aria-labelledby="waitingColorTitle">
+      <div class="room-modal glass-panel">
+        <div class="panel-header"><h2 id="waitingColorTitle">เลือกสีเต็นท์</h2></div>
+        <div id="waitingColorOptions" class="waiting-color-options"></div>
+        <div class="room-modal-actions">
+          <button id="cancelWaitingColorBtn" class="btn btn-ghost" type="button">ปิด</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- สรุปผล -->
+    <section id="gameSummary" class="game-summary hidden">
+      <div class="summary-panel glass-panel">
+        <h2 id="summaryTitle">สรุปคะแนน</h2>
+        <ul id="summaryList" class="summary-list"></ul>
+        <button id="restartGameBtn" class="btn btn-primary">เล่นอีกครั้ง</button>
+      </div>
+    </section>
+
+    <!-- วิดีโออุปสรรค (แก้ไขให้เล่นเสียงและเต็มจอ) -->
+    <div id="hazardOverlay" class="hazard-overlay hidden">
+      <video id="hazardVideo" playsinline preload="auto"></video>
+      <button id="dismissHazardBtn" class="btn btn-light">ข้าม (Skip)</button>
+    </div>
+    <div class="volume-control-wrapper">
+      <button id="musicToggleBtn" class="btn btn-ghost volume-toggle-btn music-toggle-btn" type="button" title="ปิดดนตรีพื้นหลัง" aria-label="ปิดดนตรีพื้นหลัง" aria-pressed="true">♫</button>
+      <button id="volumeToggleBtn" class="btn btn-ghost volume-toggle-btn" type="button" title="ตั้งค่าความดัง" aria-label="ตั้งค่าความดัง">🔊</button>
+      <div id="volumePopup" class="volume-popup hidden">
+        <input type="range" id="volumeSlider" class="volume-slider" min="0" max="1" step="0.01" value="0.75" aria-label="ระดับความดังเสียงโดยรวม">
+      </div>
+    </div>
+    <script type="module" src="firebase-client.js"></script>
+    <script src="script.js" defer></script>
+
+  </body>
+</html>

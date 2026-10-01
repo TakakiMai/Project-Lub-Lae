@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function roomPath(roomId) {
+      return /databases/$(database)/documents/rooms/$(roomId);
+    }
+
+    function isRoomOwner(roomData) {
+      return signedIn() && roomData.ownerUid == request.auth.uid;
+    }
+
+    match /rooms/{roomId} {
+      allow list: if signedIn() && resource.data.status == 'waiting';
+      allow get: if signedIn() && (
+        resource.data.status == 'waiting' || request.auth.uid in resource.data.memberUids
+      );
+
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'waiting'
+        && request.resource.data.capacity == 8
+        && request.resource.data.playerCount >= 1
+        && request.resource.data.playerCount <= 8
+        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.botCount >= 0
+        && request.resource.data.botCount <= 7
+        && request.resource.data.playerCount == request.resource.data.memberUids.size() + request.resource.data.botCount
+        && request.resource.data.bots is list
+        && request.resource.data.bots.size() == request.resource.data.botCount
+        && getAfter(/databases/$(database)/documents/rooms/$(roomId)/members/$(request.auth.uid)).data.uid == request.auth.uid;
+
+      allow update: if signedIn() && (
+        (
+          isRoomOwner(resource.data)
+          && request.resource.data.memberUids == resource.data.memberUids
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.playerCount <= request.resource.data.capacity
+          && request.resource.data.playerCount == request.resource.data.memberUids.size() + request.resource.data.botCount
+          && request.resource.data.botCount == request.resource.data.bots.size()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'bots', 'botCount', 'playerCount', 'status', 'updatedAt', 'gameState'
+          ])
+        ) || (
+          resource.data.status == 'waiting'
+          && request.resource.data.status == 'waiting'
+          && !(request.auth.uid in resource.data.memberUids)
+          && request.auth.uid in request.resource.data.memberUids
+          && request.resource.data.memberUids.size() == resource.data.memberUids.size() + 1
+          && request.resource.data.memberUids.hasAll(resource.data.memberUids)
+          && request.resource.data.playerCount == resource.data.playerCount + 1
+          && request.resource.data.playerCount <= resource.data.capacity
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'playerCount', 'updatedAt'])
+          && getAfter(/databases/$(database)/documents/rooms/$(roomId)/members/$(request.auth.uid)).data.uid == request.auth.uid
+        ) || (
+          resource.data.status == 'waiting'
+          && request.auth.uid in resource.data.memberUids
+          && request.auth.uid != resource.data.ownerUid
+          && !(request.auth.uid in request.resource.data.memberUids)
+          && request.resource.data.memberUids.size() == resource.data.memberUids.size() - 1
+          && resource.data.memberUids.hasAll(request.resource.data.memberUids)
+          && request.resource.data.playerCount == resource.data.playerCount - 1
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'playerCount', 'updatedAt'])
+          && !existsAfter(/databases/$(database)/documents/rooms/$(roomId)/members/$(request.auth.uid))
+        )
+      );
+
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+
+      match /members/{memberId} {
+        function parentRoom() {
+          return get(roomPath(roomId)).data;
+        }
+
+        function parentAfter() {
+          return getAfter(roomPath(roomId)).data;
+        }
+
+        allow get, list: if signedIn() && (
+          parentRoom().status == 'waiting' || request.auth.uid in parentRoom().memberUids
+        );
+
+        allow create: if signedIn()
+          && request.auth.uid == memberId
+          && request.resource.data.uid == memberId
+          && memberId in parentAfter().memberUids
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'color', 'isHost', 'joinedAt']);
+
+        allow update: if signedIn()
+          && request.auth.uid == memberId
+          && parentRoom().status == 'waiting'
+          && memberId in parentRoom().memberUids
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['color', 'updatedAt']);
+
+        allow delete: if signedIn() && (
+          request.auth.uid == resource.data.uid
+          && (!existsAfter(roomPath(roomId)) || !(request.auth.uid in getAfter(roomPath(roomId)).data.memberUids))
+          || request.auth.uid == parentRoom().ownerUid
+        );
+
+        match /actions/{playerUid} {
+          function parentRoom() {
+            return get(roomPath(roomId)).data;
+          }
+
+          allow get, list: if signedIn() && parentRoom().ownerUid == request.auth.uid;
+
+          allow create, update: if signedIn()
+            && request.auth.uid == playerUid
+            && parentRoom().status == 'playing'
+            && playerUid in parentRoom().memberUids
+            && request.resource.data.uid == playerUid
+            && request.resource.data.action in ['continue', 'camp']
+            && request.resource.data.roundNumber is int
+            && request.resource.data.turnNumber is int
+            && request.resource.data.keys().hasOnly(['uid', 'roundNumber', 'turnNumber', 'action', 'updatedAt']);
+
+          allow delete: if signedIn() && request.auth.uid == parentRoom().ownerUid;
+        }
+      }
+    }
+  }
+}
