@@ -1217,15 +1217,21 @@ function getCardAssetPath(card) {
         const room = state.currentRoom;
         const player = room?.players.find(p => p.id === playerId);
 
+        // ป้องกันไม่ให้รับข้อมูลซ้ำหากเกมไม่ได้อยู่ในช่วงตัดสินใจ
         if (state.phase !== 'decision' || !player?.active || state.decisions[playerId]) return;
+        
         clearGameStatus();
         state.decisions[playerId] = action;
 
-        // ส่งข้อมูลให้ Firebase โดยต้องระบุ uid ของเราด้วย
+        // 1. อัปเดต UI ทันที
+        updateGameControls();
+
+        // 2. ส่งข้อมูลให้ Firebase โดยระบุ uid ของเราด้วย
         if (room && room.isRemote && !fromRemote && player.isMe) {
           if (window.RoomBackend && window.RoomBackend.publishAction) {
             window.RoomBackend.publishAction(room.id, {
-              uid: window.RoomBackend.uid, // สำคัญมาก: ระบุ uid เพื่อให้ Host รู้ว่าใครเป็นคนกด
+              playerId: player.id,
+              uid: window.RoomBackend.uid,
               roundNumber: state.roundNumber,
               turnNumber: state.turnNumber,
               action: action
@@ -1233,15 +1239,29 @@ function getCardAssetPath(card) {
           }
         }
 
+        // 3. ระบบนับจำนวนคนที่ตัดสินใจแล้วแบบรัดกุม (นับจำนวนแทนการใช้ .every)
         const activePlayers = room.players.filter(p => p.active);
-        const allSelected = activePlayers.every(p => state.decisions[p.id]);
-        updateGameControls();
+        const decidedCount = activePlayers.filter(p => state.decisions[p.id]).length;
+        const allSelected = decidedCount >= activePlayers.length;
 
-        // เมื่อทุกคนตัดสินใจครบแล้ว ให้ Host (เจ้าของห้อง) เป็นคนสรุปผลเกม
-        if (allSelected) {
+        // 4. เมื่อทุกคนกดครบแล้ว ให้ Host ทำหน้าที่สรุปผลเพียงคนเดียว
+        if (allSelected && state.phase === 'decision') {
+          
+          // ล็อกสถานะเป็น 'resolving' ทันที เพื่อป้องกันข้อมูลจากผู้เล่นอื่นรันซ้ำ
+          state.phase = 'resolving';
+
           const isHost = room?.isRemote ? room.ownerUid === window.RoomBackend.uid : true;
+          
           if (isHost) {
-            resolveDecisions();
+            // หน่วงเวลา 0.5 วินาที ให้กราฟิกทำงานเสร็จ
+            setTimeout(() => {
+              resolveDecisions();
+              
+              // สั่งให้ Host ดันสถานะเกมรอบใหม่ขึ้น Firebase
+              if (room && room.isRemote && typeof queueRemoteGameState === 'function') {
+                queueRemoteGameState();
+              }
+            }, 500);
           }
         }
       }
