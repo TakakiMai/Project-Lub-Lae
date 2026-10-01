@@ -62,7 +62,7 @@ const RoomBackend = {
     let cancelled = false;
     authenticationReady.then(() => {
       if (cancelled) return;
-      const waitingRooms = query(roomCollection(), where('status', '==', 'waiting'));
+      const waitingRooms = query(roomCollection(), where('status', 'in', ['waiting', 'playing']));
       unsubscribe = onSnapshot(waitingRooms, (snapshot) => {
       onChange(snapshot.docs.map((room) => ({ id: room.id, ...room.data(), isRemote: true, players: room.data().bots || [] })));
       }, onError);

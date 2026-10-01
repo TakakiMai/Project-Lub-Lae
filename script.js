@@ -434,6 +434,10 @@ const hazardVideoMap = {
               // ถ้ายังไม่เข้าเกม หรือ เน็ตหลุดจนล้าหลังมาก ให้บังคับโหลดหน้าจอจากโฮสต์มาทับทันที
               if ((notInGameYet || isLagging) && !state.remoteApplying) {
                 applyRemoteGameState(remoteRoom);
+
+                // เพิ่มบรรทัดนี้ลงไป: หลังจากดึงเซฟรอบล่าสุดมาแล้ว ให้เช็กปุ่มกดของเพื่อนๆ อีกครั้ง!
+              processRemoteActions(remoteRoom);
+              
               } else {
                 // แต่ถ้ากำลังเล่นไปพร้อมๆ กัน ให้อัปเดตแค่เลขเวอร์ชัน เพื่อให้เกมเดินหน้าต่ออย่างลื่นไหล
                 state.lastRemoteGameRevision = gs.revision;
@@ -481,6 +485,11 @@ const hazardVideoMap = {
         if (!gameState || gameState.revision <= state.lastRemoteGameRevision) return;
         state.remoteApplying = true;
         state.lastRemoteGameRevision = gameState.revision;
+
+        // --- สิ่งที่ต้องเพิ่ม: ดึงเลขเวอร์ชันล่าสุดกลับมาด้วย ป้องกันโฮสต์เซฟทับด้วยเลข 0 ---
+        state.gameSyncRevision = gameState.revision; 
+        // -------------------------------------------------------------------------
+
         state.currentRoom = room;
         state.currentRoom.players = gameState.players.map((player) => ({
           ...player,
@@ -889,6 +898,12 @@ const hazardVideoMap = {
         clearInterval(state.countdownTimer);
         clearTimeout(state.roundTimer);
         clearGameStatus();
+
+        // --- สิ่งที่ต้องเพิ่ม: ปิดการรับข้อมูลจากห้องเก่า เพื่อป้องกัน Ghost Listener ---
+        unsubscribeCurrentRoom?.();
+        unsubscribeCurrentRoom = null;
+        // -------------------------------------------------------------
+
         elements.countdownOverlay.classList.remove('active'); elements.hazardVideo.pause();
         elements.hazardOverlay.classList.add('hidden'); elements.gameSummary.classList.add('hidden');
         state.currentRoom = null; state.phase = 'lobby'; showScreen('lobby');

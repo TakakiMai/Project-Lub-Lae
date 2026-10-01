@@ -14,7 +14,7 @@ service cloud.firestore {
     }
 
     match /rooms/{roomId} {
-      allow list: if signedIn() && resource.data.status == 'waiting';
+      allow list: if signedIn() && resource.data.status in ['waiting', 'playing'];
       allow get: if signedIn() && (
         resource.data.status == 'waiting' || request.auth.uid in resource.data.memberUids
       );
